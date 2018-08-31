@@ -114,9 +114,96 @@ int execute(char **tokens, int cnt, char *home_dir, int bg)
 		}
 		wait(NULL);
 	}
+	else
+	{
+		int pid = fork();
+		if(pid != 0)
+			printf("%d\n", pid);
+		if(pid == 0){
+			execvp(tokens[0], &tokens[0]);	
+		}
+	}
 	return 0;
 }
 
+
+int pinfo_builtin(char **tokens, int cnt, char *home_dir)
+{
+	long long int pid = 0;
+	if(cnt == 1){
+		pid = getpid();
+	}
+	else
+	{
+		for(int i = 0; i < strlen(tokens[1]); i++)
+		{
+			pid = (pid * 10) + (tokens[1][i] - '0');
+		}
+	}
+	
+	char exec[MAX_SIZE]; char stat[MAX_SIZE];
+	exec[0] = '/';
+	exec[1] = 'p';
+	exec[2] = 'r';
+	exec[3] = 'o';
+	exec[4] = 'c';
+	exec[5] = '/';
+	exec[6] = '\0';
+	stat[0] = '/';
+	stat[1] = 'p';
+	stat[2] = 'r';
+	stat[3] = 'o';
+	stat[4] = 'c';
+	stat[5] = '/';
+	stat[6] = '\0';
+	char *EXEC = "/exe\0";
+	char *STAT = "/stat\0";
+	long long copy = pid;
+	int len = 0;
+	while(copy > 0){
+		copy /= 10;
+		len++;
+	}
+	char PID[MAX_SIZE];
+	copy = pid;
+	for(int i = 0; i < len; i++){
+		PID[len - 1 - i] = (char)(48 + (copy % 10));
+		copy /= 10;
+	}
+	PID[len] = '\0';
+	strcat(exec, PID);
+	strcat(stat, PID);
+	strcat(exec, EXEC);
+	strcat(stat, STAT);
+	char link[MAX_SIZE];
+	for(int i = 0; i < MAX_SIZE; i++)
+		link[i] = '\0';
+	int val = readlink(exec, link, MAX_SIZE);
+	FILE * fd = fopen(stat, "r");
+	if(fd != NULL){
+		char  b[MAX_SIZE];
+		fscanf(fd, " %4096s", b);
+		fscanf(fd, " %4096s", b);
+		fscanf(fd, " %4096s", b);
+		printf("pid -- %lld\n", pid);
+		printf("Process Status -- %s\n", b);
+		for(int i=0; i<20; ++i) fscanf(fd, " %4096s", b);
+		printf("Virtual Memory -- %s\n", b);
+	}
+	else
+	{
+		//Error: Invalid Process.
+	}
+	if(val == -1){
+		//Error : Read Link Error
+		return 1;
+	}
+	else
+	{
+		printf("Executable path -- %s\n", link);
+	}
+	return 1;
+}
 
 int ls_builtin(char **tokens, int cnt, char *home_dir)
 {
@@ -285,19 +372,22 @@ void shell_loop()
 		char *input_string = input();
 		int background = 0;
 		int cnt = 0;
+		//char *background_string = malloc(sizeof(char) * )
 		while(input_string[cnt] != '\0')
 		{
 			cnt++;
 		}
-		if(input_string[cnt - 1] == '&')
+		if(input_string[cnt - 2] == '&'){
+			input_string[cnt - 2] = '\0';	
 			background = 1;
+		}
 		char **tokens = lsh_split_line(input_string);
 		int argc = arg_count(tokens);
-		execute(tokens, argc, "lol", background);
 		if(background){
+			//printf("%s\n", input_string);
 			execute(tokens, argc, "lol", background);
 		}
-		if(strcmp(tokens[0], "cd") == 0){
+		else if(strcmp(tokens[0], "cd") == 0){
 			cd_builtin(tokens, argc, "lol");
 		}
 		else if(strcmp(tokens[0], "pwd") == 0){
@@ -308,6 +398,9 @@ void shell_loop()
 		}
 		else if(strcmp(tokens[0], "ls") == 0){
 			ls_builtin(tokens, argc, "lol");
+		}
+		else if(strcmp(tokens[0], "pinfo") == 0){
+			pinfo_builtin(tokens, argc, "lol");
 		}
 		else{
 			execute(tokens, argc, "lol", background);
