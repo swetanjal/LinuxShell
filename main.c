@@ -46,6 +46,21 @@ char **lsh_split_line(char *line)
   return tokens;
 }
 
+char **split(char * line)
+{
+	char ** tokens = malloc(MAX_SIZE * sizeof(char*));
+	char * token;
+	token = strtok(line, ";\n");
+	int count = 0;
+	while(token != NULL)
+	{
+		tokens[count++] = token;
+		token = strtok(NULL, ";\n");
+	}
+	tokens[count++] = NULL;
+	return tokens;
+}
+
 int echo_builtin(char **args, int cnt, char *home_dir)
 {
 	for(int i = 1; i < cnt; i++){
@@ -462,10 +477,14 @@ void shell_loop()
 		char *stat = getcwd(curr_dir, MAX_SIZE);
 		abs_to_rel(home_dir, curr_dir);
 		printf("<%s@%s:%s> ", username, system_name, rel);
-		char *input_string = input();
+		char *input_str = input();
+		char **commands = split(input_str);
+		int test_cases = arg_count(commands);
+		
+		for(int ccc = 0; ccc < test_cases; ccc++){
+		char *input_string = commands[ccc];
 		int background = 0;
 		int cnt = 0;
-		//char *background_string = malloc(sizeof(char) * )
 		while(input_string[cnt] != '\0')
 		{
 			cnt++;
@@ -478,7 +497,6 @@ void shell_loop()
 		char **tokens = lsh_split_line(input_string);
 		int argc = arg_count(tokens);
 		if(background){
-			//printf("%s\n", input_string);
 			background_processes++;
 			execute(tokens, argc, home_dir, background);
 		}
@@ -511,8 +529,11 @@ void shell_loop()
 		{
 			signal(SIGCHLD, handler);
 		}
-		free(input_string);
-		free(tokens);
+		//free(input_string);
+		//free(tokens);
+		}
+		free(input_str);
+		free(commands);
 	}
 }
 
