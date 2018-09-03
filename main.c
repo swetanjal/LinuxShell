@@ -10,9 +10,11 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #define MAX_SIZE 105
-/*To be changed*/
 #define LSH_TOK_BUFSIZE 64
 #define LSH_TOK_DELIM " \t\r\n\a"
+
+int background_processes;
+
 char **lsh_split_line(char *line)
 {
   int bufsize = LSH_TOK_BUFSIZE, position = 0;
@@ -43,7 +45,6 @@ char **lsh_split_line(char *line)
   tokens[position] = NULL;
   return tokens;
 }
-/************/
 
 int echo_builtin(char **args, int cnt, char *home_dir)
 {
@@ -59,9 +60,22 @@ int cd_builtin(char **args, int cnt, char *home_dir)
 		//Incorrect usage, only one argument was passed.
 
 	}
+	if(args[1][0] == '~'){
+		char *new_dir = malloc(MAX_SIZE * sizeof(char));
+		new_dir[0] = '\0';
+		strcat(new_dir, home_dir);
+		strcat(new_dir, &args[1][1]);
+		int status = chdir(new_dir);
+		free(new_dir);
+		if(status == 0)
+			return 1;
+		else
+			return 0;	
+	}
 	int status = chdir(args[1]);
-	if(status == 0)
+	if(status == 0){
 		return 1;
+	}
 	else{
 		/*Print invalid directory*/
 		return 0;
@@ -103,15 +117,29 @@ typedef struct{
 	char **args;
 }command;
 
+void handler(int sig)
+{
+	fflush(stdout);
+	pid_t pid = wait(NULL);
+	if(pid != -1){
+		printf("Process with pid %d exited normally.\n", pid);
+		--background_processes;
+	}
+	return;
+}
+
 int execute(char **tokens, int cnt, char *home_dir, int bg)
 {
+	int status;
 	if(bg == 0)
 	{
 		/*This is a foreground process*/
 		int pid = fork();
 		if(pid == 0){
 			execvp(tokens[0], &tokens[0]);
+			exit(1);
 		}
+		//waitpid(pid, &status, WUNTRACED);
 		wait(NULL);
 	}
 	else
@@ -120,8 +148,10 @@ int execute(char **tokens, int cnt, char *home_dir, int bg)
 		if(pid != 0)
 			printf("%d\n", pid);
 		if(pid == 0){
-			execvp(tokens[0], &tokens[0]);	
+			execvp(tokens[0], &tokens[0]);
+			exit(1);	
 		}
+		//waitpid(pid, &status, WNOHANG);
 	}
 	return 0;
 }
@@ -201,6 +231,36 @@ int pinfo_builtin(char **tokens, int cnt, char *home_dir)
 	else
 	{
 		printf("Executable path -- %s\n", link);
+	}
+	return 1;
+}
+
+int remindme(char **tokens, int cnt, char *home_dir)
+{
+	//printf("REMINDME!!!\n");
+	int time = 0;
+	if(cnt < 3)
+	{
+		//Invalid Usage
+	}
+	for(int i = 0; i < strlen(tokens[1]); i++)
+	{
+		if(tokens[1][i] >= '0' && tokens[1][i] <= '9')
+		{
+			time = (time * 10) + (tokens[1][i] - '0');
+		}
+		else
+		{
+			//Invalid number
+		}
+	}
+	int pid = fork();
+	if(pid == 0){
+		sleep(time);
+		printf("Reminder: ");
+		for(int i = 2; i < cnt; i++)
+			printf("%s ", tokens[i]);
+		printf("\n");
 	}
 	return 1;
 }
@@ -360,15 +420,48 @@ int ls_builtin(char **tokens, int cnt, char *home_dir)
 	}
 	return 0;
 }
+char rel[MAX_SIZE];
+
+void abs_to_rel(char *home_dir, char *path)
+{
+	rel[0] = '~';
+	rel[1] = '/';
+	for(int i = 2; i <= strlen(path) - strlen(home_dir) + 1; i++)
+		rel[i] = path[i - 1 + strlen(home_dir)];
+	rel[strlen(path) - strlen(home_dir) + 2] = '\0';
+}
+
+void clock_builtin(char **tokens, int argc, char *home_dir)
+{
+	int time_limit = 0;
+	for(int i = 0; i < strlen(tokens[4]); i++)
+		time_limit = (time_limit * 10) + (tokens[4][i] - '0');
+	int __time = 0;
+	for(int i = 0; i < strlen(tokens[2]); i++)
+		__time = (__time * 10) + (tokens[2][i] - '0');
+	for(int i = 1; i <= time_limit; i += __time)
+	{
+		time_t t = time(NULL);
+		char * res = malloc(MAX_SIZE * sizeof(char));
+		strftime(res, MAX_SIZE, "%b%e %Y, %H:%M:%S ", localtime(&t));
+		printf("%s\n", res);
+		sleep(__time);
+	}
+}
 
 void shell_loop()
 {
 	char *system_name = (char *)malloc(MAX_SIZE * sizeof(char));
 	gethostname(system_name, MAX_SIZE);
 	char *username = getenv("USER");
+	char *home_dir = (char *)malloc(MAX_SIZE * sizeof(char));
+	getcwd(home_dir, MAX_SIZE);
 	while(1)
 	{
-		printf("<%s@%s:~> ", username, system_name);
+		char *curr_dir = (char *)malloc(MAX_SIZE * sizeof(char));
+		char *stat = getcwd(curr_dir, MAX_SIZE);
+		abs_to_rel(home_dir, curr_dir);
+		printf("<%s@%s:%s> ", username, system_name, rel);
 		char *input_string = input();
 		int background = 0;
 		int cnt = 0;
@@ -380,30 +473,43 @@ void shell_loop()
 		if(input_string[cnt - 2] == '&'){
 			input_string[cnt - 2] = '\0';	
 			background = 1;
+			//background_processes++;
 		}
 		char **tokens = lsh_split_line(input_string);
 		int argc = arg_count(tokens);
 		if(background){
 			//printf("%s\n", input_string);
-			execute(tokens, argc, "lol", background);
+			background_processes++;
+			execute(tokens, argc, home_dir, background);
 		}
 		else if(strcmp(tokens[0], "cd") == 0){
-			cd_builtin(tokens, argc, "lol");
+			cd_builtin(tokens, argc, home_dir);
 		}
 		else if(strcmp(tokens[0], "pwd") == 0){
-			pwd_builtin(tokens, argc, "lol");
+			pwd_builtin(tokens, argc, home_dir);
 		}
 		else if(strcmp(tokens[0], "echo") == 0){
-			echo_builtin(tokens, argc, "lol");
+			echo_builtin(tokens, argc, home_dir);
 		}
 		else if(strcmp(tokens[0], "ls") == 0){
-			ls_builtin(tokens, argc, "lol");
+			ls_builtin(tokens, argc, home_dir);
 		}
 		else if(strcmp(tokens[0], "pinfo") == 0){
-			pinfo_builtin(tokens, argc, "lol");
+			pinfo_builtin(tokens, argc, home_dir);
+		}
+		else if(strcmp(tokens[0], "remindme") == 0){
+			remindme(tokens, argc, home_dir);
+		}
+		else if(strcmp(tokens[0], "clock") == 0)
+		{
+			clock_builtin(tokens, argc, home_dir);
 		}
 		else{
-			execute(tokens, argc, "lol", background);
+			execute(tokens, argc, home_dir, background);
+		}
+		if(background_processes > 0)
+		{
+			signal(SIGCHLD, handler);
 		}
 		free(input_string);
 		free(tokens);
