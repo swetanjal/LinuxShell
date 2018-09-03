@@ -365,6 +365,7 @@ int ls_builtin(char **tokens, int cnt, char *home_dir)
 	void list_directory(char *dir, char *pwd, int L, int A, int not_pwd)
 	{
 		/*If not_pwd is 1, it means that the directory we are printing is not the pwd.*/
+
 		struct dirent **nameList;
 		int dir_cnt =scandir(dir, &nameList, NULL, __sort);
 		for(int i = 0; i < dir_cnt; i++){
@@ -442,17 +443,31 @@ int ls_builtin(char **tokens, int cnt, char *home_dir)
 		if(tokens[i][0] != '-')
 		{
 			if(many > 1)
-				printf("%s:\n", tokens[i]);
+					printf("%s:\n", tokens[i]);
 			if(tokens[i][0] == '~'){
 				char tmp[MAX_SIZE];
 				for(int i = 0; i < MAX_SIZE; i++)
 					tmp[i] = '\0';
 				strcat(tmp, home_dir);
 				strcat(tmp, &tokens[i][1]);
+				DIR * ptr = opendir(tmp);
+				if(ptr == NULL)
+				{
+					perror("Error");
+					continue;
+				}	
 				list_directory(tmp, curr, l_flag, a_flag, 1);
 			}
-			else
+			else{
+				DIR * ptr = opendir(tokens[i]);
+				if(ptr == NULL)
+				{
+					perror("Error");
+					continue;
+				}
+					
 				list_directory(tokens[i], curr, l_flag, a_flag, 1);
+			}
 			printf("\n");
 		}
 		
