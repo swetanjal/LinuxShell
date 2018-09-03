@@ -73,7 +73,8 @@ int cd_builtin(char **args, int cnt, char *home_dir)
 {
 	if(args[1] == NULL){
 		//Incorrect usage, only one argument was passed.
-
+		perror("Incorrect Usage\n");
+		return -1;
 	}
 	if(args[1][0] == '~'){
 		char *new_dir = malloc(MAX_SIZE * sizeof(char));
@@ -82,10 +83,13 @@ int cd_builtin(char **args, int cnt, char *home_dir)
 		strcat(new_dir, &args[1][1]);
 		int status = chdir(new_dir);
 		free(new_dir);
-		if(status == 0)
+		if(status == 0){
 			return 1;
-		else
+		}
+		else{
+			perror("Error");
 			return 0;	
+		}
 	}
 	int status = chdir(args[1]);
 	if(status == 0){
@@ -93,6 +97,7 @@ int cd_builtin(char **args, int cnt, char *home_dir)
 	}
 	else{
 		/*Print invalid directory*/
+		perror("Error");
 		return 0;
 	}
 }
@@ -103,6 +108,7 @@ int pwd_builtin(char **args, int cnt, char *home_dir)
 	char * status = getcwd(pwd, MAX_SIZE);
 	if(status == NULL){
 		/*Print unable to get pwd*/
+		perror("Error");
 		return 0;
 	}
 	else{
@@ -182,7 +188,12 @@ int pinfo_builtin(char **tokens, int cnt, char *home_dir)
 	{
 		for(int i = 0; i < strlen(tokens[1]); i++)
 		{
+			if(tokens[1][i] >= '0' && tokens[1][i] <= '9')
 			pid = (pid * 10) + (tokens[1][i] - '0');
+			else{
+				perror("Invalid process id!");
+				return -1;
+			}
 		}
 	}
 	
@@ -257,6 +268,8 @@ int remindme(char **tokens, int cnt, char *home_dir)
 	if(cnt < 3)
 	{
 		//Invalid Usage
+		perror("Invalid Usage of command");
+		return -1;
 	}
 	for(int i = 0; i < strlen(tokens[1]); i++)
 	{
@@ -267,6 +280,8 @@ int remindme(char **tokens, int cnt, char *home_dir)
 		else
 		{
 			//Invalid number
+			perror("Invalid number in second argument!");
+			return -1;
 		}
 	}
 	int pid = fork();
@@ -428,7 +443,16 @@ int ls_builtin(char **tokens, int cnt, char *home_dir)
 		{
 			if(many > 1)
 				printf("%s:\n", tokens[i]);
-			list_directory(tokens[i], curr, l_flag, a_flag, 1);
+			if(tokens[i][0] == '~'){
+				char tmp[MAX_SIZE];
+				for(int i = 0; i < MAX_SIZE; i++)
+					tmp[i] = '\0';
+				strcat(tmp, home_dir);
+				strcat(tmp, &tokens[i][1]);
+				list_directory(tmp, curr, l_flag, a_flag, 1);
+			}
+			else
+				list_directory(tokens[i], curr, l_flag, a_flag, 1);
 			printf("\n");
 		}
 		
@@ -446,14 +470,32 @@ void abs_to_rel(char *home_dir, char *path)
 	rel[strlen(path) - strlen(home_dir) + 2] = '\0';
 }
 
-void clock_builtin(char **tokens, int argc, char *home_dir)
+int clock_builtin(char **tokens, int argc, char *home_dir)
 {
+	if(argc != 5){
+		perror("Invalid Usage\n");
+		return -1;
+	}
 	int time_limit = 0;
-	for(int i = 0; i < strlen(tokens[4]); i++)
+	for(int i = 0; i < strlen(tokens[4]); i++){
+		if(tokens[4][i] >= '0' && tokens[4][i] <= '9')
 		time_limit = (time_limit * 10) + (tokens[4][i] - '0');
+		else
+		{
+			perror("Invalid number in argument 5");
+			return -1;
+		}
+	}
 	int __time = 0;
-	for(int i = 0; i < strlen(tokens[2]); i++)
+	for(int i = 0; i < strlen(tokens[2]); i++){
+		if(tokens[2][i] >= '0' && tokens[2][i] <= '9')
 		__time = (__time * 10) + (tokens[2][i] - '0');
+		else
+		{
+			perror("Invalid number in argument 3");
+			return -1;
+		}		
+	}
 	for(int i = 1; i <= time_limit; i += __time)
 	{
 		time_t t = time(NULL);
@@ -462,6 +504,7 @@ void clock_builtin(char **tokens, int argc, char *home_dir)
 		printf("%s\n", res);
 		sleep(__time);
 	}
+	return 0;
 }
 
 void shell_loop()
@@ -489,7 +532,11 @@ void shell_loop()
 		{
 			cnt++;
 		}
-		if(input_string[cnt - 2] == '&'){
+		if(input_string[cnt - 1] == '&'){
+			input_string[cnt - 1] = '\0';
+			background = 1;
+		}
+		else if(input_string[cnt - 2] == '&'){
 			input_string[cnt - 2] = '\0';	
 			background = 1;
 			//background_processes++;
