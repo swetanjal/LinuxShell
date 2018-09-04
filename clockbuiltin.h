@@ -1,0 +1,1 @@
+int clock_builtin(char **tokens, int argc, char *home_dir);
