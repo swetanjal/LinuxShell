@@ -9,6 +9,12 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include "echobuiltin.h"
+#include "cdbuiltin.h"
+#include "pwdbuiltin.h"
+#include "execute.h"
+#include "pinfobuiltin.h"
+#include "remindme.h"
 #define MAX_SIZE 105
 #define LSH_TOK_BUFSIZE 64
 #define LSH_TOK_DELIM " \t\r\n\a"
@@ -61,62 +67,6 @@ char **split(char * line)
 	return tokens;
 }
 
-int echo_builtin(char **args, int cnt, char *home_dir)
-{
-	for(int i = 1; i < cnt; i++){
-		printf("%s ", args[i]);
-	}
-	printf("\n");
-}
-
-int cd_builtin(char **args, int cnt, char *home_dir)
-{
-	if(args[1] == NULL){
-		//Incorrect usage, only one argument was passed.
-		perror("Incorrect Usage\n");
-		return -1;
-	}
-	if(args[1][0] == '~'){
-		char *new_dir = malloc(MAX_SIZE * sizeof(char));
-		new_dir[0] = '\0';
-		strcat(new_dir, home_dir);
-		strcat(new_dir, &args[1][1]);
-		int status = chdir(new_dir);
-		free(new_dir);
-		if(status == 0){
-			return 1;
-		}
-		else{
-			perror("Error");
-			return 0;	
-		}
-	}
-	int status = chdir(args[1]);
-	if(status == 0){
-		return 1;
-	}
-	else{
-		/*Print invalid directory*/
-		perror("Error");
-		return 0;
-	}
-}
-
-int pwd_builtin(char **args, int cnt, char *home_dir)
-{
-	char pwd[MAX_SIZE];
-	char * status = getcwd(pwd, MAX_SIZE);
-	if(status == NULL){
-		/*Print unable to get pwd*/
-		perror("Error");
-		return 0;
-	}
-	else{
-		printf("%s\n", pwd);
-		return 1;
-	}
-}
-
 char* input()
 {
 	char * line;
@@ -147,152 +97,6 @@ void handler(int sig)
 		--background_processes;
 	}
 	return;
-}
-
-int execute(char **tokens, int cnt, char *home_dir, int bg)
-{
-	int status;
-	if(bg == 0)
-	{
-		/*This is a foreground process*/
-		int pid = fork();
-		if(pid == 0){
-			execvp(tokens[0], &tokens[0]);
-			exit(1);
-		}
-		//waitpid(pid, &status, WUNTRACED);
-		wait(NULL);
-	}
-	else
-	{
-		int pid = fork();
-		if(pid != 0)
-			printf("%d\n", pid);
-		if(pid == 0){
-			execvp(tokens[0], &tokens[0]);
-			exit(1);	
-		}
-		//waitpid(pid, &status, WNOHANG);
-	}
-	return 0;
-}
-
-
-int pinfo_builtin(char **tokens, int cnt, char *home_dir)
-{
-	long long int pid = 0;
-	if(cnt == 1){
-		pid = getpid();
-	}
-	else
-	{
-		for(int i = 0; i < strlen(tokens[1]); i++)
-		{
-			if(tokens[1][i] >= '0' && tokens[1][i] <= '9')
-			pid = (pid * 10) + (tokens[1][i] - '0');
-			else{
-				perror("Invalid process id!");
-				return -1;
-			}
-		}
-	}
-	
-	char exec[MAX_SIZE]; char stat[MAX_SIZE];
-	exec[0] = '/';
-	exec[1] = 'p';
-	exec[2] = 'r';
-	exec[3] = 'o';
-	exec[4] = 'c';
-	exec[5] = '/';
-	exec[6] = '\0';
-	stat[0] = '/';
-	stat[1] = 'p';
-	stat[2] = 'r';
-	stat[3] = 'o';
-	stat[4] = 'c';
-	stat[5] = '/';
-	stat[6] = '\0';
-	char *EXEC = "/exe\0";
-	char *STAT = "/stat\0";
-	long long copy = pid;
-	int len = 0;
-	while(copy > 0){
-		copy /= 10;
-		len++;
-	}
-	char PID[MAX_SIZE];
-	copy = pid;
-	for(int i = 0; i < len; i++){
-		PID[len - 1 - i] = (char)(48 + (copy % 10));
-		copy /= 10;
-	}
-	PID[len] = '\0';
-	strcat(exec, PID);
-	strcat(stat, PID);
-	strcat(exec, EXEC);
-	strcat(stat, STAT);
-	char link[MAX_SIZE];
-	for(int i = 0; i < MAX_SIZE; i++)
-		link[i] = '\0';
-	int val = readlink(exec, link, MAX_SIZE);
-	FILE * fd = fopen(stat, "r");
-	if(fd != NULL){
-		char  b[MAX_SIZE];
-		fscanf(fd, " %4096s", b);
-		fscanf(fd, " %4096s", b);
-		fscanf(fd, " %4096s", b);
-		printf("pid -- %lld\n", pid);
-		printf("Process Status -- %s\n", b);
-		for(int i=0; i<20; ++i) fscanf(fd, " %4096s", b);
-		printf("Virtual Memory -- %s\n", b);
-	}
-	else
-	{
-		//Error: Invalid Process.
-	}
-	if(val == -1){
-		//Error : Read Link Error
-		return 1;
-	}
-	else
-	{
-		printf("Executable path -- %s\n", link);
-	}
-	return 1;
-}
-
-int remindme(char **tokens, int cnt, char *home_dir)
-{
-	//printf("REMINDME!!!\n");
-	int time = 0;
-	if(cnt < 3)
-	{
-		//Invalid Usage
-		perror("Invalid Usage of command");
-		return -1;
-	}
-	for(int i = 0; i < strlen(tokens[1]); i++)
-	{
-		if(tokens[1][i] >= '0' && tokens[1][i] <= '9')
-		{
-			time = (time * 10) + (tokens[1][i] - '0');
-		}
-		else
-		{
-			//Invalid number
-			perror("Invalid number in second argument!");
-			return -1;
-		}
-	}
-	int pid = fork();
-	if(pid == 0){
-		sleep(time);
-		printf("Reminder: ");
-		for(int i = 2; i < cnt; i++)
-			printf("%s ", tokens[i]);
-		printf("\n");
-	}
-	return 1;
 }
 
 int ls_builtin(char **tokens, int cnt, char *home_dir)
