@@ -7,10 +7,19 @@
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <stdio.h>
+#include "echobuiltin.h"
+#include "cdbuiltin.h"
+#include "pwdbuiltin.h"
+#include "execute.h"
+#include "pinfobuiltin.h"
+#include "remindme.h"
+#include "lsbuiltin.h"
+#include "clockbuiltin.h"
 #define MAX_SIZE 1005
 
 int execute(char **tokens, int cnt, char *home_dir, int bg)
 {
+	int argc = cnt;
 	int restore_input = dup(0);
 	int restore_output = dup(1);
 	if(bg == 0)
@@ -77,8 +86,32 @@ int execute(char **tokens, int cnt, char *home_dir, int bg)
 		}
 		int pid = fork();
 		if(pid == 0){
-			execvp(tokens[0], &tokens[0]);
-			exit(1);
+			if(strcmp(tokens[0], "cd") == 0){
+				cd_builtin(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "pwd") == 0){
+				pwd_builtin(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "echo") == 0){
+				echo_builtin(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "ls") == 0){
+				ls_builtin(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "pinfo") == 0){
+				pinfo_builtin(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "remindme") == 0){
+				remindme(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "clock") == 0)
+			{
+				clock_builtin(tokens, argc, home_dir);
+			}
+			else{
+				execvp(tokens[0], &tokens[0]);
+				exit(1);
+			}
 		}
 		wait(NULL);
 		dup2(restore_input, 0);
@@ -92,8 +125,32 @@ int execute(char **tokens, int cnt, char *home_dir, int bg)
 		if(pid != 0)
 			printf("%d\n", pid);
 		if(pid == 0){
-			execvp(tokens[0], &tokens[0]);
-			exit(1);	
+			if(strcmp(tokens[0], "cd") == 0){
+				cd_builtin(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "pwd") == 0){
+				pwd_builtin(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "echo") == 0){
+				echo_builtin(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "ls") == 0){
+				ls_builtin(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "pinfo") == 0){
+				pinfo_builtin(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "remindme") == 0){
+				remindme(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "clock") == 0)
+			{
+				clock_builtin(tokens, argc, home_dir);
+			}
+			else{
+				execvp(tokens[0], &tokens[0]);
+				exit(1);
+			}
 		}
 	}
 	return 0;

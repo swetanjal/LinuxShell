@@ -158,7 +158,7 @@ void process_pipes(char * str, int len, char *home_dir)
 		else
 		{
 			wait(NULL);
-           	close(pipefd[1]);
+			close(pipefd[1]);
 			fd = pipefd[0];
 		}
 		free(token_pipe);
@@ -225,28 +225,6 @@ void shell_loop()
 				background_processes++;
 				execute(tokens, argc, home_dir, background);
 			}
-			/*else if(strcmp(tokens[0], "cd") == 0){
-				cd_builtin(tokens, argc, home_dir);
-			}
-			else if(strcmp(tokens[0], "pwd") == 0){
-				pwd_builtin(tokens, argc, home_dir);
-			}
-			else if(strcmp(tokens[0], "echo") == 0){
-				echo_builtin(tokens, argc, home_dir);
-			}
-			else if(strcmp(tokens[0], "ls") == 0){
-				ls_builtin(tokens, argc, home_dir);
-			}
-			else if(strcmp(tokens[0], "pinfo") == 0){
-				pinfo_builtin(tokens, argc, home_dir);
-			}
-			else if(strcmp(tokens[0], "remindme") == 0){
-				remindme(tokens, argc, home_dir);
-			}
-			else if(strcmp(tokens[0], "clock") == 0)
-			{
-				clock_builtin(tokens, argc, home_dir);
-			}*/
 			else{
 				execute(tokens, argc, home_dir, background);
 			}
@@ -254,8 +232,6 @@ void shell_loop()
 			{
 				signal(SIGCHLD, handler);
 			}
-			//free(input_string);
-			//free(tokens);
 		}
 		free(input_str);
 		free(commands);
