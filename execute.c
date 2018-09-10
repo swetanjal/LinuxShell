@@ -29,6 +29,14 @@ int execute(char **tokens, int cnt, char *home_dir, int bg)
 		char input[MAX_SIZE];
 		char output[MAX_SIZE][MAX_SIZE];
 		int append[MAX_SIZE];
+		int pos = cnt;
+		for(int i = 0; i < cnt; i++)
+		{
+			if(strcmp(">", tokens[i]) == 0 || strcmp(">>", tokens[i]) == 0 || strcmp("<", tokens[i]) == 0){
+				pos = i;
+				break;
+			}
+		}
 		int output_counter = 0;
 		for(int i = 0; i < MAX_SIZE; i++){
 			input[i] = '\0';
@@ -87,26 +95,26 @@ int execute(char **tokens, int cnt, char *home_dir, int bg)
 		int pid = fork();
 		if(pid == 0){
 			if(strcmp(tokens[0], "cd") == 0){
-				cd_builtin(tokens, argc, home_dir);
+				cd_builtin(tokens, pos, home_dir);
 			}
 			else if(strcmp(tokens[0], "pwd") == 0){
-				pwd_builtin(tokens, argc, home_dir);
+				pwd_builtin(tokens, pos, home_dir);
 			}
 			else if(strcmp(tokens[0], "echo") == 0){
-				echo_builtin(tokens, argc, home_dir);
+				echo_builtin(tokens, pos, home_dir);
 			}
 			else if(strcmp(tokens[0], "ls") == 0){
-				ls_builtin(tokens, argc, home_dir);
+				ls_builtin(tokens, pos, home_dir);
 			}
 			else if(strcmp(tokens[0], "pinfo") == 0){
-				pinfo_builtin(tokens, argc, home_dir);
+				pinfo_builtin(tokens, pos, home_dir);
 			}
 			else if(strcmp(tokens[0], "remindme") == 0){
-				remindme(tokens, argc, home_dir);
+				remindme(tokens, pos, home_dir);
 			}
 			else if(strcmp(tokens[0], "clock") == 0)
 			{
-				clock_builtin(tokens, argc, home_dir);
+				clock_builtin(tokens, pos, home_dir);
 			}
 			else{
 				execvp(tokens[0], &tokens[0]);
