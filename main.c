@@ -69,6 +69,21 @@ char **split(char * line)
 	return tokens;
 }
 
+char **pipe_split(char * line)
+{
+	char ** tokens = malloc(MAX_SIZE * sizeof(char*));
+	char * token;
+	token = strtok(line, "|\n");
+	int count = 0;
+	while(token != NULL)
+	{
+		tokens[count++] = token;
+		token = strtok(NULL, "|\n");
+	}
+	tokens[count++] = NULL;
+	return tokens;	
+}
+
 char* input()
 {
 	char * line;
@@ -108,6 +123,55 @@ void abs_to_rel(char *home_dir, char *path)
 	rel[strlen(path) - strlen(home_dir) + 2] = '\0';
 }
 
+void process_pipes(char * str, int len, char *home_dir)
+{
+	char ** tokens = pipe_split(str);
+	int cnt = 0;
+	while(tokens[cnt++] != NULL);
+	cnt--;	
+	int fd = 0;
+	int restore_input = dup(0), restore_output = dup(1);
+	//printf("%d\n", cnt);
+	for(int i = 0; i < cnt; i++)
+	{
+		int pipefd[2];
+		pipe(pipefd);
+		char ** token_pipe = lsh_split_line(tokens[i]);
+		int c = 0;
+		while(token_pipe[c++] != NULL);
+		c--;
+		int ccc = 0;
+		while(token_pipe[ccc] == NULL){
+			ccc++;
+		}
+		int child = fork();
+		
+		if(child == 0){
+			dup2(fd , 0);
+            if(tokens[i + 1] != NULL)dup2(pipefd[1],1);
+            else
+            {
+            	dup2(restore_output, 1);
+            }
+            close(pipefd[0]);
+			execute(&token_pipe[ccc], c, home_dir, 0);
+			exit(1);
+		}
+		else
+		{
+			wait(NULL);
+           	close(pipefd[1]);
+			fd = pipefd[0];
+		}
+		free(token_pipe);
+	}
+
+	dup2(restore_input, 0);
+	dup2(restore_output, 1);
+	close(restore_output);
+	close(restore_input);
+}
+
 void shell_loop()
 {
 	char *system_name = (char *)malloc(MAX_SIZE * sizeof(char));
@@ -127,59 +191,73 @@ void shell_loop()
 		int test_cases = arg_count(commands);
 		
 		for(int ccc = 0; ccc < test_cases; ccc++){
-		char *input_string = commands[ccc];
-		int background = 0;
-		int cnt = 0;
-		while(input_string[cnt] != '\0')
-		{
-			cnt++;
-		}
-		if(input_string[cnt - 1] == '&'){
-			input_string[cnt - 1] = '\0';
-			background = 1;
-		}
-		else if(input_string[cnt - 2] == '&'){
-			input_string[cnt - 2] = '\0';	
-			background = 1;
-			//background_processes++;
-		}
-		char **tokens = lsh_split_line(input_string);
-		int argc = arg_count(tokens);
-		if(background){
-			background_processes++;
-			execute(tokens, argc, home_dir, background);
-		}
-		else if(strcmp(tokens[0], "cd") == 0){
-			cd_builtin(tokens, argc, home_dir);
-		}
-		else if(strcmp(tokens[0], "pwd") == 0){
-			pwd_builtin(tokens, argc, home_dir);
-		}
-		else if(strcmp(tokens[0], "echo") == 0){
-			echo_builtin(tokens, argc, home_dir);
-		}
-		else if(strcmp(tokens[0], "ls") == 0){
-			ls_builtin(tokens, argc, home_dir);
-		}
-		else if(strcmp(tokens[0], "pinfo") == 0){
-			pinfo_builtin(tokens, argc, home_dir);
-		}
-		else if(strcmp(tokens[0], "remindme") == 0){
-			remindme(tokens, argc, home_dir);
-		}
-		else if(strcmp(tokens[0], "clock") == 0)
-		{
-			clock_builtin(tokens, argc, home_dir);
-		}
-		else{
-			execute(tokens, argc, home_dir, background);
-		}
-		if(background_processes > 0)
-		{
-			signal(SIGCHLD, handler);
-		}
-		//free(input_string);
-		//free(tokens);
+			char *input_string = commands[ccc];
+			int background = 0;
+			int cnt = 0;
+
+			while(input_string[cnt] != '\0')
+			{
+				cnt++;
+			}
+			if(input_string[cnt - 1] == '&'){
+				input_string[cnt - 1] = '\0';
+				background = 1;
+			}
+			else if(input_string[cnt - 2] == '&'){
+				input_string[cnt - 2] = '\0';	
+				background = 1;
+				//background_processes++;
+			}
+			int pipe = 0;
+			for(int i = 0; i < cnt; i++)
+			{
+				if(input_string[i] == '|'){
+					pipe = 1;
+					break;
+				}
+			}
+			if(pipe)
+			{
+				process_pipes(input_string, cnt, home_dir);
+				continue;
+			}
+			char **tokens = lsh_split_line(input_string);
+			int argc = arg_count(tokens);
+			if(background){
+				background_processes++;
+				execute(tokens, argc, home_dir, background);
+			}
+			/*else if(strcmp(tokens[0], "cd") == 0){
+				cd_builtin(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "pwd") == 0){
+				pwd_builtin(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "echo") == 0){
+				echo_builtin(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "ls") == 0){
+				ls_builtin(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "pinfo") == 0){
+				pinfo_builtin(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "remindme") == 0){
+				remindme(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "clock") == 0)
+			{
+				clock_builtin(tokens, argc, home_dir);
+			}*/
+			else{
+				execute(tokens, argc, home_dir, background);
+			}
+			if(background_processes > 0)
+			{
+				signal(SIGCHLD, handler);
+			}
+			//free(input_string);
+			//free(tokens);
 		}
 		free(input_str);
 		free(commands);
