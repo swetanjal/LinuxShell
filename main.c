@@ -148,12 +148,10 @@ void process_pipes(char * str, int len, char *home_dir)
 		
 		if(child == 0){
 			dup2(fd , 0);
-            if(tokens[i + 1] != NULL)dup2(pipefd[1],1);
-            else
-            {
-            	dup2(restore_output, 1);
-            }
-            close(pipefd[0]);
+			if(tokens[i + 1] != NULL)dup2(pipefd[1],1);
+			else
+				dup2(restore_output, 1);
+			close(pipefd[0]);
 			execute(&token_pipe[ccc], c, home_dir, 0);
 			exit(1);
 		}
