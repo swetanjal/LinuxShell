@@ -1,5 +1,14 @@
 #include <stdlib.h>
 #include <stdio.h>
+#define MAX_SIZE 105
+typedef struct command
+{
+	char name[MAX_SIZE];
+	int pid;
+}command;
+
+extern int proc_cnt;
+extern command proc[MAX_SIZE];
 int setenvBuiltin(char ** arguments, int cnt, char * home_dir)
 {
 	if(cnt == 3)
@@ -40,4 +49,10 @@ int unsetenvBuiltin(char ** arguments, int cnt, char * home_dir)
 	}
 	unsetenv(arguments[1]);
 	return 0;
+}
+
+void print_jobs(char ** arguments, int cnt, char * home_dir, command * tail)
+{
+	for(int i = 0; i < proc_cnt; i++)
+		printf("%d %s\n", proc[i].pid, proc[i].name);
 }
