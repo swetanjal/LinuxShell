@@ -15,6 +15,7 @@
 #include "remindme.h"
 #include "lsbuiltin.h"
 #include "clockbuiltin.h"
+#include "jobcontrol.h"
 #define MAX_SIZE 1005
 
 int execute(char **tokens, int cnt, char *home_dir, int bg)
@@ -116,6 +117,18 @@ int execute(char **tokens, int cnt, char *home_dir, int bg)
 			{
 				clock_builtin(tokens, pos, home_dir);
 			}
+			else if(strcmp(tokens[0], "setenv") == 0)
+			{
+				setenvBuiltin(tokens, pos, home_dir);
+			}
+			else if(strcmp(tokens[0], "unsetenv") == 0)
+			{
+				unsetenvBuiltin(tokens, pos, home_dir);
+			}
+			else if(strcmp(tokens[0], "getenv") == 0)
+			{
+				getenvBuiltin(tokens, pos, home_dir);
+			}
 			else{
 				execvp(tokens[0], &tokens[0]);
 				exit(1);
@@ -154,6 +167,18 @@ int execute(char **tokens, int cnt, char *home_dir, int bg)
 			else if(strcmp(tokens[0], "clock") == 0)
 			{
 				clock_builtin(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "setenv") == 0)
+			{
+				setenvBuiltin(tokens, argc, home_dir);	
+			}
+			else if(strcmp(tokens[0], "unsetenv") == 0)
+			{
+				unsetenvBuiltin(tokens, argc, home_dir);
+			}
+			else if(strcmp(tokens[0], "getenv") == 0)
+			{
+				getenvBuiltin(tokens, argc, home_dir);
 			}
 			else{
 				execvp(tokens[0], &tokens[0]);
