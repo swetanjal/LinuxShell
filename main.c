@@ -25,18 +25,45 @@ typedef struct command
 {
 	char name[MAX_SIZE];
 	int pid;
+	struct command * prev;
 }command;
 
 int proc_cnt;
-command proc[MAX_SIZE];
+command * background_last = NULL;
+command * foreground_last = NULL;
 int background_processes;
 
+void childEndHandler(int sig)
+{
+	fflush(stdout);
+	pid_t pid;
+	int status;
+	while((pid = waitpid(-1, &status, (WNOHANG | WUNTRACED))) > 0)
+	{
+		if(foreground_last != NULL && foreground_last->pid == pid)
+		{
+
+		}
+		else{
+			if(WIFEXITED(status))
+			{
+				printf("Process with pid %d exited normally.\n", pid);
+				background_last = removeFromBackground(pid, background_last);
+			}
+			else if(WIFSIGNALED(status))
+			{
+				printf("Process with pid %d terminated normally.\n", pid);
+				background_last = removeFromBackground(pid, background_last);	
+			}
+		}
+	}	
+}
 
 int execute(char **tokens, int cnt, char *home_dir, int bg)
 {
-	int argc = cnt;
 	int restore_input = dup(0);
 	int restore_output = dup(1);
+	int pos = cnt;
 	if(bg == 0)
 	{
 		/*This is a foreground process*/
@@ -44,7 +71,7 @@ int execute(char **tokens, int cnt, char *home_dir, int bg)
 		char input[MAX_SIZE];
 		char output[MAX_SIZE][MAX_SIZE];
 		int append[MAX_SIZE];
-		int pos = cnt;
+		//int pos = cnt;
 		for(int i = 0; i < cnt; i++)
 		{
 			if(strcmp(">", tokens[i]) == 0 || strcmp(">>", tokens[i]) == 0 || strcmp("<", tokens[i]) == 0){
@@ -107,52 +134,66 @@ int execute(char **tokens, int cnt, char *home_dir, int bg)
 			dup2(fd, STDOUT_FILENO);
 			close(fd);
 		}
-		int pid = fork();
-		if(pid == 0){
-			if(strcmp(tokens[0], "cd") == 0){
-				cd_builtin(tokens, pos, home_dir);
-			}
-			else if(strcmp(tokens[0], "pwd") == 0){
-				pwd_builtin(tokens, pos, home_dir);
-			}
-			else if(strcmp(tokens[0], "echo") == 0){
-				echo_builtin(tokens, pos, home_dir);
-			}
-			else if(strcmp(tokens[0], "ls") == 0){
-				ls_builtin(tokens, pos, home_dir);
-			}
-			else if(strcmp(tokens[0], "pinfo") == 0){
-				pinfo_builtin(tokens, pos, home_dir);
-			}
-			else if(strcmp(tokens[0], "remindme") == 0){
-				remindme(tokens, pos, home_dir);
-			}
-			else if(strcmp(tokens[0], "clock") == 0)
-			{
-				clock_builtin(tokens, pos, home_dir);
-			}
-			else if(strcmp(tokens[0], "setenv") == 0)
-			{
-				setenvBuiltin(tokens, pos, home_dir);
-			}
-			else if(strcmp(tokens[0], "unsetenv") == 0)
-			{
-				unsetenvBuiltin(tokens, pos, home_dir);
-			}
-			else if(strcmp(tokens[0], "getenv") == 0)
-			{
-				getenvBuiltin(tokens, pos, home_dir);
-			}
-			else if(strcmp(tokens[0], "jobs") == 0)
-			{
-				print_jobs(tokens, pos, home_dir);	
-			}
-			else{
+		if(strcmp(tokens[0], "cd") == 0){
+			cd_builtin(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "pwd") == 0){
+			pwd_builtin(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "echo") == 0){
+			echo_builtin(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "ls") == 0){
+			ls_builtin(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "pinfo") == 0){
+			pinfo_builtin(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "remindme") == 0){
+			remindme(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "clock") == 0)
+		{
+			clock_builtin(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "setenv") == 0)
+		{
+			setenvBuiltin(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "unsetenv") == 0)
+		{
+			unsetenvBuiltin(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "getenv") == 0)
+		{
+			getenvBuiltin(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "jobs") == 0)
+		{
+			print_jobs(tokens, pos, home_dir, background_last);	
+		}
+		else if(strcmp(tokens[0], "kjob") == 0)
+		{
+			kjob(tokens, pos, home_dir, background_last);
+		}
+		else if(strcmp(tokens[0], "overkill") == 0)
+		{
+			overkill(tokens, pos, home_dir, background_last);
+		}
+		else if(strcmp(tokens[0], "fg") == 0)
+		{
+			background_last = fgBuiltin(tokens, pos, home_dir, background_last);
+		}
+		else{
+			int pid = fork();
+			if(pid == 0){
 				execvp(tokens[0], &tokens[0]);
 				exit(1);
 			}
+			else{
+				wait(NULL);
+			}
 		}
-		wait(NULL);
 		dup2(restore_input, 0);
 		dup2(restore_output, 1);
 		close(restore_input);
@@ -160,64 +201,73 @@ int execute(char **tokens, int cnt, char *home_dir, int bg)
 	}
 	else
 	{
-
-		int pid = fork();
-		if(pid != 0)
-			printf("%d\n", pid);
-		strcpy(proc[proc_cnt].name, tokens[0]);
-		proc[proc_cnt].pid = pid;
-		proc_cnt++;
-		if(pid == 0){
-			if(strcmp(tokens[0], "cd") == 0){
-				cd_builtin(tokens, argc, home_dir);
-			}
-			else if(strcmp(tokens[0], "pwd") == 0){
-				pwd_builtin(tokens, argc, home_dir);
-			}
-			else if(strcmp(tokens[0], "echo") == 0){
-				echo_builtin(tokens, argc, home_dir);
-			}
-			else if(strcmp(tokens[0], "ls") == 0){
-				ls_builtin(tokens, argc, home_dir);
-			}
-			else if(strcmp(tokens[0], "pinfo") == 0){
-				pinfo_builtin(tokens, argc, home_dir);
-			}
-			else if(strcmp(tokens[0], "remindme") == 0){
-				remindme(tokens, argc, home_dir);
-			}
-			else if(strcmp(tokens[0], "clock") == 0)
-			{
-				clock_builtin(tokens, argc, home_dir);
-			}
-			else if(strcmp(tokens[0], "setenv") == 0)
-			{
-				setenvBuiltin(tokens, argc, home_dir);	
-			}
-			else if(strcmp(tokens[0], "unsetenv") == 0)
-			{
-				unsetenvBuiltin(tokens, argc, home_dir);
-			}
-			else if(strcmp(tokens[0], "getenv") == 0)
-			{
-				getenvBuiltin(tokens, argc, home_dir);
-			}
-			else if(strcmp(tokens[0], "jobs") == 0)
-			{
-				print_jobs(tokens, argc, home_dir);
-			}
-			else{
+		if(strcmp(tokens[0], "cd") == 0){
+			cd_builtin(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "pwd") == 0){
+			pwd_builtin(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "echo") == 0){
+			echo_builtin(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "ls") == 0){
+			ls_builtin(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "pinfo") == 0){
+			pinfo_builtin(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "remindme") == 0){
+			remindme(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "clock") == 0)
+		{
+			clock_builtin(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "setenv") == 0)
+		{
+			setenvBuiltin(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "unsetenv") == 0)
+		{
+			unsetenvBuiltin(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "getenv") == 0)
+		{
+			getenvBuiltin(tokens, pos, home_dir);
+		}
+		else if(strcmp(tokens[0], "jobs") == 0)
+		{
+			print_jobs(tokens, pos, home_dir, background_last);	
+		}
+		else if(strcmp(tokens[0], "kjob") == 0)
+		{
+			kjob(tokens, pos, home_dir, background_last);
+		}
+		else if(strcmp(tokens[0], "overkill") == 0)
+		{
+			overkill(tokens, pos, home_dir, background_last);
+		}
+		else if(strcmp(tokens[0], "fg") == 0)
+		{
+			background_last = fgBuiltin(tokens, pos, home_dir, background_last);
+		}
+		else{
+			int pid = fork();
+			if(pid != 0)
+				printf("%d\n", pid);
+			command proc;
+			strcpy(proc.name, tokens[0]);
+			proc.pid = pid;
+			background_last = addToBackground(proc, background_last);
+			proc_cnt++;
+			if(pid == 0){
 				execvp(tokens[0], &tokens[0]);
 				exit(1);
 			}
-			
 		}
 	}
 	return 0;
 }
-
-
-
 
 char **lsh_split_line(char *line)
 {
@@ -296,16 +346,6 @@ int arg_count(char **tokens)
 	return cnt;
 }
 
-void handler(int sig)
-{
-	fflush(stdout);
-	pid_t pid = wait(NULL);
-	if(pid != -1){
-		printf("Process with pid %d exited normally.\n", pid);
-		--background_processes;
-	}
-	return;
-}
 
 
 char rel[MAX_SIZE];
@@ -373,6 +413,7 @@ void shell_loop()
 	char *username = getenv("USER");
 	char *home_dir = (char *)malloc(MAX_SIZE * sizeof(char));
 	getcwd(home_dir, MAX_SIZE);
+	//signal(SIGCHLD, childEndHandler);
 	while(1)
 	{
 		char *curr_dir = (char *)malloc(MAX_SIZE * sizeof(char));
@@ -388,7 +429,7 @@ void shell_loop()
 			char *input_string = commands[ccc];
 			int background = 0;
 			int cnt = 0;
-
+			
 			while(input_string[cnt] != '\0')
 			{
 				cnt++;
@@ -426,10 +467,7 @@ void shell_loop()
 			else{
 				execute(tokens, argc, home_dir, background);
 			}
-			if(background_processes > 0)
-			{
-				signal(SIGCHLD, handler);
-			}
+			signal(SIGCHLD, childEndHandler);
 		}
 		free(input_str);
 		free(commands);
