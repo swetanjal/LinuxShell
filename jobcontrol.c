@@ -96,13 +96,15 @@ command * removeFromBackground(int pid, command * tail)
 	}
 	if(ptr == tail)
 	{
-		tail = ptr -> prev;
-		free(ptr);
+		if(ptr != NULL)
+			tail = ptr -> prev;
+		//free(ptr);
 	}
 	else
 	{
-		next -> prev = ptr -> prev;
-		free(ptr);
+		if(next != NULL)
+			next -> prev = ptr -> prev;
+		//free(ptr);
 	}
 	return tail;
 }
@@ -169,33 +171,4 @@ void overkill(char ** tokens, int K, char * home_dir, command * tail)
 {
 	command * starter = tail;
 	kill_proc(starter);
-}
-
-command * fgBuiltin(char ** arguments, int K, char * home_dir, command * tail)
-{
-	if(K != 2)
-	{
-		perror("Invalid Usage.");
-		return tail;
-	}
-	int proc_no = atoi(arguments[1]);
-	command * ptr = tail;
-	int c = 0;
-	while(ptr != NULL){
-		c++;
-		ptr = ptr -> prev;
-	}
-	ptr = tail;
-	int cnt = 0;
-	while(ptr != NULL && (c - cnt) != proc_no)
-	{
-		cnt++;
-		ptr = ptr -> prev;
-	}
-	siginfo_t fgStatus;
-	int val = kill(ptr->pid, SIGCONT);
-	int PID = ptr -> pid;
-	tail = removeFromBackground(ptr -> pid, tail);
-	waitid(P_PID, PID, &fgStatus, (WUNTRACED | WNOWAIT));
-	return tail;
 }

@@ -33,6 +33,67 @@ command * background_last = NULL;
 command * foreground_last = NULL;
 int background_processes;
 
+void quit()
+{
+	int pid = getpid();
+	kill(pid, 9);
+}
+
+command * fgBuiltin(char ** arguments, int K, char * home_dir, command * tail)
+{
+	if(K != 2)
+	{
+		perror("Invalid Usage.");
+		return background_last;
+	}
+	int proc_no = atoi(arguments[1]);
+	command * ptr = background_last;
+	int c = 0;
+	while(ptr != NULL){
+		c++;
+		ptr = ptr -> prev;
+	}
+	ptr = background_last;
+	int cnt = 0;
+	while(ptr != NULL && (c - cnt) != proc_no)
+	{
+		cnt++;
+		ptr = ptr -> prev;
+	}
+	if(ptr != NULL){
+		int val = kill(ptr->pid, SIGCONT);
+		if(val == -1)
+		{
+			perror("Kill error.");
+			return tail;
+		}
+		siginfo_t fgStatus;
+		int PID = ptr -> pid;
+		foreground_last = ptr;
+		background_last = removeFromBackground(ptr -> pid, background_last);
+		//wait(NULL);
+
+		waitid(P_PID, PID, &fgStatus, (WUNTRACED | WNOWAIT));
+		free(ptr);
+	}
+	else{
+		free(ptr);
+		perror("Invalid process number");
+	}
+	return background_last;
+}
+void sigintHandler(int sig)
+{
+	if(foreground_last != NULL)
+		kill(foreground_last -> pid, SIGINT);
+}
+
+void sigtstpHandler(int sig)
+{
+	if(foreground_last != NULL)
+		kill(foreground_last -> pid, SIGTSTP);
+}
+
 void childEndHandler(int sig)
 {
 	fflush(stdout);
@@ -42,18 +103,46 @@ void childEndHandler(int sig)
 	{
 		if(foreground_last != NULL && foreground_last->pid == pid)
 		{
+			if(WIFEXITED(status)){
 
-		}
-		else{
-			if(WIFEXITED(status))
-			{
-				printf("Process with pid %d exited normally.\n", pid);
-				background_last = removeFromBackground(pid, background_last);
 			}
-			else if(WIFSIGNALED(status))
+			else if(WIFSTOPPED(status)) {
+				printf("%s with pid %d stopped\n", foreground_last -> name, pid);
+				command G;
+				strcpy(G.name, foreground_last->name);
+				G.pid = pid;
+				background_last = addToBackground(G, background_last);
+			}
+			else if(WIFSIGNALED(status)){
+				printf("%s with pid %d terminated\n", foreground_last -> name, pid);
+			}
+			//free(foreground_last);
+			foreground_last = NULL;
+		}
+		else if(background_last != NULL){
+			/*Check for pid in background linked list.*/
+			command * ptr = background_last;
+			int found = 0;
+			while(ptr != NULL)
 			{
-				printf("Process with pid %d terminated normally.\n", pid);
-				background_last = removeFromBackground(pid, background_last);	
+				if(ptr -> pid == pid)
+				{
+					found = 1;
+					break;
+				}
+				ptr = ptr -> prev;
+			}
+			if(found){
+				if(WIFEXITED(status))
+				{
+					printf("Process with pid %d exited normally.\n", pid);
+					background_last = removeFromBackground(pid, background_last);
+				}
+				else if(WIFSIGNALED(status))
+				{
+					printf("Process with pid %d terminated normally.\n", pid);
+					background_last = removeFromBackground(pid, background_last);	
+				}
 			}
 		}
 	}	
@@ -184,14 +273,24 @@ int execute(char **tokens, int cnt, char *home_dir, int bg)
 		{
 			background_last = fgBuiltin(tokens, pos, home_dir, background_last);
 		}
+		else if(strcmp(tokens[0], "quit") == 0){
+			quit();
+		}
 		else{
 			int pid = fork();
+			command * f = (command *)malloc(sizeof(command));
+			strcpy(f -> name, tokens[0]);
+			f -> pid = pid;
+			foreground_last = f;
+			
 			if(pid == 0){
 				execvp(tokens[0], &tokens[0]);
 				exit(1);
 			}
 			else{
-				wait(NULL);
+				siginfo_t fgStatus;
+				waitid(P_PID, pid, &fgStatus, (WUNTRACED | WNOWAIT));
+				//wait(NULL);
 			}
 		}
 		dup2(restore_input, 0);
@@ -250,6 +349,9 @@ int execute(char **tokens, int cnt, char *home_dir, int bg)
 		else if(strcmp(tokens[0], "fg") == 0)
 		{
 			background_last = fgBuiltin(tokens, pos, home_dir, background_last);
+		}
+		else if(strcmp(tokens[0], "quit") == 0){
+			quit();
 		}
 		else{
 			int pid = fork();
@@ -413,7 +515,11 @@ void shell_loop()
 	char *username = getenv("USER");
 	char *home_dir = (char *)malloc(MAX_SIZE * sizeof(char));
 	getcwd(home_dir, MAX_SIZE);
-	//signal(SIGCHLD, childEndHandler);
+	signal(SIGCHLD, childEndHandler);
+	signal(SIGINT, sigintHandler);
+	signal(SIGTSTP, sigtstpHandler);
+	signal(SIGTTOU, SIG_IGN);
+	signal(SIGCHLD, childEndHandler);
 	while(1)
 	{
 		char *curr_dir = (char *)malloc(MAX_SIZE * sizeof(char));
@@ -426,6 +532,7 @@ void shell_loop()
 		int test_cases = arg_count(commands);
 		
 		for(int ccc = 0; ccc < test_cases; ccc++){
+			
 			char *input_string = commands[ccc];
 			int background = 0;
 			int cnt = 0;
@@ -468,6 +575,9 @@ void shell_loop()
 				execute(tokens, argc, home_dir, background);
 			}
 			signal(SIGCHLD, childEndHandler);
+			signal(SIGINT, sigintHandler);
+			signal(SIGTSTP, sigtstpHandler);
+			signal(SIGTTOU, SIG_IGN);
 		}
 		free(input_str);
 		free(commands);
