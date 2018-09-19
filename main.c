@@ -39,6 +39,42 @@ void quit()
 	kill(pid, 9);
 }
 
+void bgBuiltin(char ** arguments, int K, char * home_dir)
+{
+	if(K != 2)
+	{
+		perror("Invalid Usage.");
+		return;
+	}
+	int proc_no = atoi(arguments[1]);
+	command * ptr = background_last;
+	int c = 0;
+	while(ptr != NULL){
+		c++;
+		ptr = ptr -> prev;
+	}
+	ptr = background_last;
+	int cnt = 0;
+	while(ptr != NULL && (c - cnt) != proc_no)
+	{
+		cnt++;
+		ptr = ptr -> prev;
+	}
+	if(ptr != NULL){
+		int val = kill(ptr->pid, SIGCONT);
+		if(val == -1)
+		{
+			perror("Kill error.");
+			return;
+		}
+		free(ptr);
+	}
+	else{
+		free(ptr);
+		perror("Invalid process number");
+	}
+}
+
 command * fgBuiltin(char ** arguments, int K, char * home_dir, command * tail)
 {
 	if(K != 2)
@@ -84,12 +120,14 @@ command * fgBuiltin(char ** arguments, int K, char * home_dir, command * tail)
 }
 void sigintHandler(int sig)
 {
-	if(foreground_last != NULL)
+	if(foreground_last != NULL){
 		kill(foreground_last -> pid, SIGINT);
+	}
 }
 
 void sigtstpHandler(int sig)
 {
+
 	if(foreground_last != NULL)
 		kill(foreground_last -> pid, SIGTSTP);
 }
@@ -276,13 +314,16 @@ int execute(char **tokens, int cnt, char *home_dir, int bg)
 		else if(strcmp(tokens[0], "quit") == 0){
 			quit();
 		}
+		else if(strcmp(tokens[0], "bg") == 0)
+			bgBuiltin(tokens, pos, home_dir);
 		else{
 			int pid = fork();
-			command * f = (command *)malloc(sizeof(command));
-			strcpy(f -> name, tokens[0]);
-			f -> pid = pid;
-			foreground_last = f;
-			
+			if(pid != 0){
+				command * f = (command *)malloc(sizeof(command));
+				strcpy(f -> name, tokens[0]);
+				f -> pid = pid;
+				foreground_last = f;
+			}
 			if(pid == 0){
 				execvp(tokens[0], &tokens[0]);
 				exit(1);
@@ -353,6 +394,8 @@ int execute(char **tokens, int cnt, char *home_dir, int bg)
 		else if(strcmp(tokens[0], "quit") == 0){
 			quit();
 		}
+		else if(strcmp(tokens[0], "bg") == 0)
+			bgBuiltin(tokens, pos, home_dir);
 		else{
 			int pid = fork();
 			if(pid != 0)
@@ -519,7 +562,6 @@ void shell_loop()
 	signal(SIGINT, sigintHandler);
 	signal(SIGTSTP, sigtstpHandler);
 	signal(SIGTTOU, SIG_IGN);
-	signal(SIGCHLD, childEndHandler);
 	while(1)
 	{
 		char *curr_dir = (char *)malloc(MAX_SIZE * sizeof(char));

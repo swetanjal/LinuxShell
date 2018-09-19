@@ -59,7 +59,18 @@ void rec_print(command * ptr, int cnt)
 	if(ptr == NULL)
 		return;
 	rec_print(ptr->prev, cnt - 1);
-	printf("[%d]%d %s\n", cnt, ptr->pid, ptr->name);
+	char pathToProcess[MAX_SIZE];
+	sprintf(pathToProcess, "/proc/%d/wchan", ptr -> pid);
+	FILE* fd = fopen(pathToProcess, "r");
+	printf("[%d] %d\t", cnt, ptr -> pid);
+	if(fd != NULL)
+	{
+		char status[MAX_SIZE];
+		fscanf(fd, "%s", status);
+		if(strcmp(status, "do_signal_stop") == 0) printf("Stopped\t");
+		else printf("Running\t");	
+	}
+	printf("\t%s\n", ptr->name);
 }
 
 void print_jobs(char ** arguments, int cnt, char * home_dir, command * tail)
