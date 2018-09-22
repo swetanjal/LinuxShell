@@ -67,10 +67,8 @@ void bgBuiltin(char ** arguments, int K, char * home_dir)
 			perror("Kill error.");
 			return;
 		}
-		free(ptr);
 	}
 	else{
-		free(ptr);
 		perror("Invalid process number");
 	}
 }
@@ -108,7 +106,9 @@ command * fgBuiltin(char ** arguments, int K, char * home_dir, command * tail)
 		foreground_last = ptr;
 		background_last = removeFromBackground(ptr -> pid, background_last);
 		//wait(NULL);
-
+		/*Makes the process group with process group foreground_last -> pgid the foreground group on the terminal associated
+		to STDIN_FILENO(fd = 0)*/
+		tcsetpgrp(STDIN_FILENO, foreground_last->pid);
 		waitid(P_PID, PID, &fgStatus, (WUNTRACED | WNOWAIT));
 		free(ptr);
 	}
@@ -120,9 +120,11 @@ command * fgBuiltin(char ** arguments, int K, char * home_dir, command * tail)
 }
 void sigintHandler(int sig)
 {
-	if(foreground_last != NULL){
+	if(foreground_last != NULL)
+	{
 		kill(foreground_last -> pid, SIGINT);
 	}
+
 }
 
 void sigtstpHandler(int sig)
@@ -141,6 +143,8 @@ void childEndHandler(int sig)
 	{
 		if(foreground_last != NULL && foreground_last->pid == pid)
 		{
+			/*getpgid(0) is the process group if of the calling process.*/
+			tcsetpgrp(STDIN_FILENO, getpgid(0));
 			if(WIFEXITED(status)){
 
 			}
@@ -325,10 +329,14 @@ int execute(char **tokens, int cnt, char *home_dir, int bg)
 				foreground_last = f;
 			}
 			if(pid == 0){
+				/*This line essentially sets the group of this child process with pid = pid to pid. In other words the group
+				number of the child process is same as it's pid.*/
+				setpgid(0, 0);
 				execvp(tokens[0], &tokens[0]);
 				exit(1);
 			}
 			else{
+				tcsetpgrp(STDIN_FILENO, pid);
 				siginfo_t fgStatus;
 				waitid(P_PID, pid, &fgStatus, (WUNTRACED | WNOWAIT));
 				//wait(NULL);
@@ -406,6 +414,9 @@ int execute(char **tokens, int cnt, char *home_dir, int bg)
 			background_last = addToBackground(proc, background_last);
 			proc_cnt++;
 			if(pid == 0){
+				/*This line essentially sets the group of this child process with pid = pid to pid. In other words the group
+				number of the child process is same as it's pid.*/
+				setpgid(0, 0);
 				execvp(tokens[0], &tokens[0]);
 				exit(1);
 			}
@@ -616,10 +627,6 @@ void shell_loop()
 			else{
 				execute(tokens, argc, home_dir, background);
 			}
-			signal(SIGCHLD, childEndHandler);
-			signal(SIGINT, sigintHandler);
-			signal(SIGTSTP, sigtstpHandler);
-			signal(SIGTTOU, SIG_IGN);
 		}
 		free(input_str);
 		free(commands);
